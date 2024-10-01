@@ -11,7 +11,6 @@ param (
     [switch]$init_db = $false,
     [switch]$use_mirror = $false,
     [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/serveurs/windows/pilotes.md",
-    #[string]$db_path = "$PSScriptRoot\pilotes.md",
     [string]$server_path = "\\srv-applis\Drivers"
     #[string]$username = "",
     #[string]$password = ""
@@ -170,7 +169,24 @@ function InitDriverDb {
     }
 }
 
-function GetDrivers {
+# install local drivers
+function GetLocalDrivers {
+    $model = GetComputerModel
+    $path = "C:\drivers\$model"
+
+    if (Test-Path -Path $path) {
+        # install all drivers (*.inf)
+        pnputil /add-driver "$path\*.inf" /subdirs /install
+        # cleanup
+        $null = Remove-Item "$path" -Recurse -Force
+    }
+    else {
+        Write-Output "GetLocalDrivers: skipping local drivers, directory not found ($path)"
+    }
+}
+
+# install remote drivers
+function GetRemoteDrivers {
     param (
         [string]$Path
     )
@@ -251,5 +267,6 @@ if ($init_db) {
     Write-Host "All done..."
 }
 else {
-    GetDrivers($server_path)
+    GetLocalDrivers
+    GetRemoteDrivers($server_path)
 }
