@@ -1,3 +1,12 @@
+#######################
+# deploy_drivers.ps1
+# David Carré @ 2024
+#######################
+
+#####################
+# script parameters #
+#####################
+
 param (
     [switch]$init_db = $false,
     [switch]$use_mirror = $false,
@@ -7,11 +16,6 @@ param (
     #[string]$username = "",
     #[string]$password = ""
 )
-
-#######################
-# deploy_drivers.ps1
-# David Carré @ 2024
-#######################
 
 ##############################
 # custom functions / helpers #
