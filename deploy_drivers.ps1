@@ -38,7 +38,7 @@ function GetDeviceDriver {
         }
     }
     catch {
-        Write-Warning "GetDeviceDriver($Id): $($_.Exception.Message)"
+        #Write-Warning "GetDeviceDriver($Id): $($_.Exception.Message)"
     }
 
     return $false
@@ -210,16 +210,17 @@ function GetDrivers {
         if ("$host_drv" -ne "$db_drv") {
             $filename = Split-Path $driver.DDL -Leaf
             $cab_path = "$Path\drivers\$filename"
-            Write-Host "GetDrivers: installing $db_drv ($cab_path)..."
 
             # copy cab file to a temp folder and extract it's content
+            Write-Host "GetDrivers: downloading $db_drv ($cab_path)..."
             $tmp_file = ([System.IO.Path]::GetTempPath()) + $filename
             Copy-Item -Path "$cab_path" -Destination "$tmp_file"
 
             # extract cab content to local drivers path
+            Write-Host "GetDrivers: extracting $db_drv ($cab_path)..."
             $tmp_path = "$local_driver_path\$db_drv"
             $null = New-Item -Path "$tmp_path" -ItemType Directory -Force
-            expand "$tmp_file" -F:* "$tmp_path"
+            expand "$tmp_file" -F:* "$tmp_path" > $null
 
             # cleanup temp cab file
             $null = Remove-Item "$tmp_file" -Force
@@ -240,10 +241,11 @@ function GetDrivers {
 # main entry point #
 ####################
 
-if($init_db) {
+if ($init_db) {
     Write-Host "Downloading drivers..."
     InitDriverDb
     Write-Host "All done..."
-} else {
+}
+else {
     GetDrivers($server_path)
 }
