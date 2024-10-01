@@ -8,12 +8,12 @@
 #####################
 
 param (
-    [switch]$init_db = $false,
-    [switch]$use_mirror = $false,
-    [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/serveurs/windows/pilotes.md",
-    [string]$server_path = "\\srv-applis\Drivers"
-    #[string]$username = "",
-    #[string]$password = ""
+    [string]$srv_path = "\\srv-applis.pevictor49.local\Drivers", # unc path to "pilotes.md" directory
+    [string]$srv_username = "", # srv_path unc share username
+    [string]$srv_password = "", # srv_path unc share password
+    [switch]$init_db = $false, # use "-init_db" script argument to download "data" (pilote table and all drivers on server)
+    [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/serveurs/windows/pilotes.md", # url to database
+    [switch]$use_mirror = $false # download from mirror links
 )
 
 ##############################
@@ -45,6 +45,45 @@ function GetDeviceDriver {
     }
 
     return $false
+}
+
+function MapDrive {
+    param (
+        [string]$unc_path,
+        [string]$drive
+    )
+
+    # extract server address from unc path
+    $start = $unc_path.IndexOf("\\") + 2;
+    $end = $unc_path.IndexOf("\", $start);
+    if ($start -lt 2 -or $end -lt 3 -or $end -gt $unc_path.Length - 1) {
+        Write-Error "MapDrive: could extract server address from $unc_path"
+        return $false
+    }
+
+    # test connexion to server
+    $address = $unc_path.Substring($start, $end - $start)
+    Write-Host "MapDrive: checking connexion to $address"
+    if (!(Test-Connection $address)) {
+        Write-Error "MapDrive: could not map $unc_path to $drive (connexion to $address failed)"
+        return $false
+    }
+
+    # actually map the drive (TODO: use New-PSDrive ?)
+    $net = New-Object -ComObject WScript.Network
+    $net.MapNetworkDrive("${drive}:", $unc_path, $false, $srv_username, $srv_password)
+
+    # return true if we succeed
+    return Test-Path "${drive}:"
+}
+
+function UnMapDrive {
+    param (
+        [string]$drive
+    )
+
+    $net = New-Object -ComObject WScript.Network
+    $net.RemoveNetworkDrive("${drive}:")
 }
 
 # load driver table from markdown table
@@ -268,5 +307,5 @@ if ($init_db) {
 }
 else {
     GetLocalDrivers
-    GetRemoteDrivers($server_path)
+    GetRemoteDrivers($srv_path)
 }
