@@ -8,7 +8,7 @@
 #####################
 
 param (
-    [string]$srv_path = "\\srv-applis.pevictor49.local\Drivers", # unc path to "pilotes.md" directory
+    [string]$srv_path = "", # unc path to "pilotes.md" directory
     [string]$srv_username = "", # srv_path unc share username
     [string]$srv_password = "", # srv_path unc share password
     [switch]$init_db = $false, # use "-init_db" script argument to download "data" (pilote table and all drivers on server)
@@ -53,6 +53,8 @@ function MapDrive {
         [string]$drive
     )
 
+    Write-Host "MapDrive: mapping $unc_path to ${drive}:"
+
     # extract server address from unc path
     $start = $unc_path.IndexOf("\\") + 2;
     $end = $unc_path.IndexOf("\", $start);
@@ -82,6 +84,7 @@ function UnMapDrive {
         [string]$drive
     )
 
+    Write-Host "UnMapDrive: unmapping ${drive}:"
     $net = New-Object -ComObject WScript.Network
     $net.RemoveNetworkDrive("${drive}:")
 }
@@ -230,10 +233,6 @@ function GetRemoteDrivers {
         [string]$Path
     )
 
-    # convert the password to a SecureString and create creds
-    #$securePassword = ConvertTo-SecureString $password -AsPlainText -Force
-    #$creds = New-Object System.Management.Automation.PSCredential ($username, $securePassword)
-
     # load database
     $db = LoadDriverDb("$Path\pilotes.md")
 
@@ -306,6 +305,17 @@ if ($init_db) {
     Write-Host "All done..."
 }
 else {
+    # first look for drivers on local computer ("C:\drivers")
     GetLocalDrivers
-    GetRemoteDrivers($srv_path)
+
+    # now the real deal
+    if (!(MapDrive -unc_path $srv_path -drive "r")) {
+        return 1
+    }
+
+    # main stuff
+    GetRemoteDrivers("r:")
+
+    # unmap drive
+    UnMapDrive -drive "r"
 }
