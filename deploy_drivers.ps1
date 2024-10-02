@@ -11,6 +11,7 @@ param (
     [string]$srv_path = "", # unc path to "pilotes.md" directory
     [string]$srv_username = "", # srv_path unc share username
     [string]$srv_password = "", # srv_path unc share password
+    [string]$log_file = "c:\deploy_drivers.log", # log file on client computer
     [switch]$init_db = $false, # use "-init_db" script argument to download "data" (pilote table and all drivers on server)
     [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/system/windows/pilotes.md", # url to database
     [switch]$use_mirror = $false # download from mirror links
@@ -19,6 +20,36 @@ param (
 ##############################
 # custom functions / helpers #
 ##############################
+
+function Write-Log {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+
+        [ValidateSet('Info', 'Warning', 'Error')]
+        [string]$LogLevel = 'Info'
+    )
+
+    # Get the current timestamp
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+    # Format the log message with a timestamp and log level
+    $logMessage = "[$timestamp] [$LogLevel] $Message"
+
+    # Write to console
+    if ($LogLevel.Equals("Error")) {
+        Write-Error $logMessage
+    }
+    elseif ($LogLevel.Equals("Warning")) {
+        Write-Warning $logMessage
+    }
+    else {
+        Write-Host $logMessage
+    }
+
+    # append to log file
+    Add-Content -Path $log_file -Value $logMessage
+}
 
 function GetComputerModel {
     (Get-WmiObject Win32_ComputerSystem).Model
@@ -40,9 +71,7 @@ function GetDeviceDriver {
             return
         }
     }
-    catch {
-        #Write-Warning "GetDeviceDriver($Id): $($_.Exception.Message)"
-    }
+    catch {}
 
     return $false
 }
@@ -53,21 +82,21 @@ function MapDrive {
         [string]$drive
     )
 
-    Write-Host "MapDrive: mapping $unc_path to ${drive}:"
+    Write-Log -Message "MapDrive: mapping $unc_path to ${drive}:" -LogLevel Info
 
     # extract server address from unc path
     $start = $unc_path.IndexOf("\\") + 2;
     $end = $unc_path.IndexOf("\", $start);
     if ($start -lt 2 -or $end -lt 3 -or $end -gt $unc_path.Length - 1) {
-        Write-Error "MapDrive: could extract server address from $unc_path"
+        Write-Log -Message "MapDrive: could extract server address from $unc_path" -LogLevel Error
         return $false
     }
 
     # test connexion to server
     $address = $unc_path.Substring($start, $end - $start)
-    Write-Host "MapDrive: checking connexion to $address"
+    Write-Log -Message "MapDrive: checking connexion to $address" -LogLevel Info
     if (!(Test-Connection $address)) {
-        Write-Error "MapDrive: could not map $unc_path to $drive (connexion to $address failed)"
+        Write-Log -Message "MapDrive: could not map $unc_path to $drive (connexion to $address failed)" -LogLevel Error
         return $false
     }
 
@@ -84,7 +113,7 @@ function UnMapDrive {
         [string]$drive
     )
 
-    Write-Host "UnMapDrive: unmapping ${drive}:"
+    Write-Log -Message "UnMapDrive: unmapping ${drive}:" -LogLevel Info
     $net = New-Object -ComObject WScript.Network
     $net.RemoveNetworkDrive("${drive}:")
 }
@@ -97,18 +126,18 @@ function LoadDriverDb {
 
     # download driver database if needed
     if (!(Test-Path $DbPath -PathType Leaf)) {
-        Write-Host "LoadDriverDb: downloading database from $db_url"
+        Write-Log -Message "LoadDriverDb: downloading database from $db_url" -LogLevel Info
         try {
             Invoke-WebRequest -Uri $db_url -OutFile $DbPath -TimeoutSec 5 -ErrorAction Stop
         }
         catch {
             $msg = $_.Exception.Message
-            Write-Error "LoadDriverDb: download failed: $msg"
+            Write-Log -Message "LoadDriverDb: download failed: $msg" -LogLevel Error
             exit 1
         }
     }
     else {
-        Write-Host "LoadDriverDb: loading database from $DbPath"
+        Write-Log -Message "LoadDriverDb: loading database from $DbPath" -LogLevel Info
     }
 
     # load markdown page
@@ -118,7 +147,7 @@ function LoadDriverDb {
     $startIndex = $markdown.IndexOf("| MODEL")
     $endIndex = $markdown.IndexOf("{.dense}")
     if ($startIndex -lt 0 -or $endIndex -lt 0) {
-        Write-Error "LoadDriverDb: could not extract driver table from markdown page..."
+        Write-Log -Message "LoadDriverDb: could not extract driver table from markdown page..." -LogLevel Error
         exit 1
     }
 
@@ -165,7 +194,7 @@ function LoadDriverDb {
         }
     }
 
-    Write-Host "LoadDriverDb: loaded $($table.Count) drivers"
+    Write-Log -Message "LoadDriverDb: loaded $($table.Count) drivers" -LogLevel Info
 
     return $table
 }
@@ -200,14 +229,14 @@ function InitDriverDb {
         $filename = Split-Path $url -Leaf
         $outPath = "$driversPath\$filename"
         if (!(Test-Path $outPath -PathType Leaf)) {
-            Write-Host "InitDriverDb: please wait... downloading $url to $outPath..."
+            Write-Log -Message "InitDriverDb: please wait... downloading $url to $outPath..." -LogLevel Info
             # Download the file (disable progress for speed)
             $ProgressPreference = 'SilentlyContinue'
             Invoke-WebRequest -Uri $url -OutFile $outPath
             $ProgressPreference = 'Continue'
         }
         else {
-            Write-Host "InitDriverDb: skipping $outPath (file exists)..."
+            Write-Log -Message "InitDriverDb: skipping $outPath (file exists)..." -LogLevel Info
         }
     }
 }
@@ -224,7 +253,7 @@ function GetLocalDrivers {
         $null = Remove-Item "$path" -Recurse -Force
     }
     else {
-        Write-Output "GetLocalDrivers: skipping local drivers, directory not found ($path)"
+        Write-Log -Message "GetLocalDrivers: skipping local drivers, directory not found ($path)" -LogLevel Info
     }
 }
 
@@ -247,13 +276,13 @@ function GetRemoteDrivers {
     # loop through each drivers
     foreach ($driver in $db) {
         if ([string]::IsNullOrEmpty($driver.MODEL) -or [string]::IsNullOrEmpty($driver.ID)) {
-            Write-Waring "GetDrivers: skipping invalid row..."
+            Write-Log -Message "GetDrivers: skipping invalid row..." -LogLevel Warning
             continue
         }
 
         # check if the driver is for our "model" 
         if ($driver.MODEL -ne "ALL" -or $driver.MODEL -ne $model) {
-            Write-Host "GetDrivers: skipping $($driver.DRIVER) ($($driver.MODEL) != $model)"
+            Write-Log -Message "GetDrivers: skipping $($driver.DRIVER) ($($driver.MODEL) != $model)" -LogLevel Info
             continue
         }
 
@@ -262,7 +291,7 @@ function GetRemoteDrivers {
         $db_drv = $driver.DRIVER
         $host_drv = GetDeviceDriver($id)
         if (!$host_drv) {
-            Write-Host "GetDrivers: skipping $db_drv (device not found: $id)"
+            Write-Log -Message "GetDrivers: skipping $db_drv (device not found: $id)" -LogLevel Info
             continue
         }
 
@@ -272,7 +301,7 @@ function GetRemoteDrivers {
             $cab_path = "$Path\drivers\$filename"
 
             # copy cab file to a temp folder and extract it's content
-            Write-Host "GetDrivers: downloading $db_drv ($cab_path)..."
+            Write-Log -Message "GetDrivers: downloading $db_drv ($cab_path)..." -LogLevel Info
             $tmp_file = ([System.IO.Path]::GetTempPath()) + $filename
             Copy-Item -Path "$cab_path" -Destination "$tmp_file"
 
@@ -283,7 +312,7 @@ function GetRemoteDrivers {
             }
             else {
                 # extract cab content to local drivers path
-                Write-Host "GetDrivers: extracting $db_drv ($cab_path)..."
+                Write-Log -Message "GetDrivers: extracting $db_drv ($cab_path)..." -LogLevel Info
                 $tmp_path = "$local_driver_path\$db_drv"
                 $null = New-Item -Path "$tmp_path" -ItemType Directory -Force
                 expand "$tmp_file" -F:* "$tmp_path" > $null
@@ -292,7 +321,7 @@ function GetRemoteDrivers {
             $null = Remove-Item "$tmp_file" -Force
         }
         else {
-            Write-Host "GetDrivers: skipping $db_drv (already installed)..."
+            Write-Log -Message "GetDrivers: skipping $db_drv (already installed)..." -LogLevel Info
         }
     }
 
@@ -307,10 +336,13 @@ function GetRemoteDrivers {
 # main entry point #
 ####################
 
+# cleanup log file
+$null = Remove-Item -Path "$log_file" -Force
+
 if ($init_db) {
-    Write-Host "Downloading drivers..."
+    Write-Log -Message "Downloading drivers..." -LogLevel Info
     InitDriverDb
-    Write-Host "All done..."
+    Write-Log -Message "All done..." -LogLevel Info
 }
 else {
     # first look for drivers on local computer ("C:\drivers")
