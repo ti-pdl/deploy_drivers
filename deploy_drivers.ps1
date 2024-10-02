@@ -12,7 +12,7 @@ param (
     [string]$srv_username = "", # srv_path unc share username
     [string]$srv_password = "", # srv_path unc share password
     [switch]$init_db = $false, # use "-init_db" script argument to download "data" (pilote table and all drivers on server)
-    [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/serveurs/windows/pilotes.md", # url to database
+    [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/system/windows/pilotes.md", # url to database
     [switch]$use_mirror = $false # download from mirror links
 )
 
@@ -176,6 +176,7 @@ function InitDriverDb {
     $driversPath = "$PSScriptRoot\drivers"
 
     # load database
+    $null = Remove-Item -Path "$PSScriptRoot\pilotes.md"
     $db = LoadDriverDb("$PSScriptRoot\pilotes.md")
 
     # create driver directory
@@ -250,7 +251,8 @@ function GetRemoteDrivers {
             continue
         }
 
-        if ($driver.MODEL -ne $model) {
+        # check if the driver is for our "model" 
+        if ($driver.MODEL -ne "ALL" -or $driver.MODEL -ne $model) {
             Write-Host "GetDrivers: skipping $($driver.DRIVER) ($($driver.MODEL) != $model)"
             continue
         }
@@ -274,12 +276,18 @@ function GetRemoteDrivers {
             $tmp_file = ([System.IO.Path]::GetTempPath()) + $filename
             Copy-Item -Path "$cab_path" -Destination "$tmp_file"
 
-            # extract cab content to local drivers path
-            Write-Host "GetDrivers: extracting $db_drv ($cab_path)..."
-            $tmp_path = "$local_driver_path\$db_drv"
-            $null = New-Item -Path "$tmp_path" -ItemType Directory -Force
-            expand "$tmp_file" -F:* "$tmp_path" > $null
-
+            # process driver file (cab/exe)
+            if ("$db_drv".Contains("NVIDIA") -and $filename.EndsWith(".exe")) {
+                # special case: NVIDIA package
+                Start-Process -FilePath "$tmp_file" -ArgumentList "-s -noreboot" -Wait
+            }
+            else {
+                # extract cab content to local drivers path
+                Write-Host "GetDrivers: extracting $db_drv ($cab_path)..."
+                $tmp_path = "$local_driver_path\$db_drv"
+                $null = New-Item -Path "$tmp_path" -ItemType Directory -Force
+                expand "$tmp_file" -F:* "$tmp_path" > $null
+            }
             # cleanup temp cab file
             $null = Remove-Item "$tmp_file" -Force
         }
