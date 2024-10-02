@@ -342,6 +342,8 @@ function GetRemoteDrivers {
 $null = Remove-Item -Path "$log_file" -Force
 
 if ($init_db) {
+    # change log location
+    $log_file = "$PSScriptRoot\init_db.log"
     Write-Log -Message "Downloading drivers..." -LogLevel Info
     InitDriverDb
     Write-Log -Message "All done..." -LogLevel Info
