@@ -327,6 +327,7 @@ function GetRemoteDrivers {
     }
 
     # install all extracted drivers (*.inf)
+    Write-Log -Message "GetDrivers: installing all drivers in $local_driver_path..." -LogLevel Info
     pnputil /add-driver "$local_driver_path\*.inf" /subdirs /install
 
     # cleanup
