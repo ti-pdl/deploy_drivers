@@ -308,6 +308,7 @@ function GetRemoteDrivers {
             # process driver file (cab/exe)
             if ("$db_drv".Contains("NVIDIA") -and $filename.EndsWith(".exe")) {
                 # special case: NVIDIA package
+                Write-Log -Message "GetDrivers: installing $db_drv..." -LogLevel Info
                 Start-Process -FilePath "$tmp_file" -ArgumentList "-s -noreboot" -Wait
             }
             else {
