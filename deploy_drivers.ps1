@@ -345,7 +345,7 @@ function GetRemoteDrivers {
 ####################
 
 # cleanup log file
-$null = Remove-Item -Path "$log_file" -Force
+Remove-Item -Path "$log_file" -Force > $null 2>&1
 
 if ($init) {
     # change log location
