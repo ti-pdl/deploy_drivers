@@ -318,10 +318,10 @@ function GetRemoteDrivers {
                 Start-Process -FilePath "$tmp_file" -ArgumentList "-install" -Wait
                 # legacy installer doesn't seems to install itself
                 if ($filename.StartsWith("radeon-software-adrenalin")) {
-                    # install
+                    # install from extracted installer
                     if (Test-Path "C:\AMD") {
-                        $setupFile = Get-ChildItem -Path "C:\AMD" -Depth 1 -Filter "Setup.exe" | Select-Object FullName
-                        Start-Process -FilePath "$setupFile" -ArgumentList "-install" -Wait
+                        $setup = Get-ChildItem -Path "C:\AMD" -Depth 1 -Filter "Setup.exe" | Select-Object -First 1
+                        Start-Process -FilePath "$($setup.FullName)" -ArgumentList "-install" -Wait
                     }
                     else {
                         Write-Host "The specified path does not exist."
