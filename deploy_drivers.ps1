@@ -314,7 +314,20 @@ function GetRemoteDrivers {
             elseif ("$db_drv".Contains("Advanced Micro Devices, Inc. - Display") -and $filename.EndsWith(".exe")) {
                 # special case: AMD package
                 Write-Log -Message "GetDrivers: installing $db_drv..." -LogLevel Info
+                # extract (and install for recent amd packages)
                 Start-Process -FilePath "$tmp_file" -ArgumentList "-install" -Wait
+                # legacy installer doesn't seems to install itself
+                if ($filename.StartsWith("radeon-software-adrenalin")) {
+                    # install
+                    if (Test-Path "C:\AMD") {
+                        $setupFile = Get-ChildItem -Path "C:\AMD" -Depth 1 -Filter "Setup.exe" | Select-Object FullName
+                        Start-Process -FilePath "$setupFile" -ArgumentList "-install" -Wait
+                    }
+                    else {
+                        Write-Host "The specified path does not exist."
+                    }
+                }
+                # cleanup
                 $null = Remove-Item "C:\AMD" -Recurse -Force
             }
             else {
@@ -324,6 +337,7 @@ function GetRemoteDrivers {
                 $null = New-Item -Path "$tmp_path" -ItemType Directory -Force
                 expand "$tmp_file" -F:* "$tmp_path" > $null
             }
+
             # cleanup temp cab file
             $null = Remove-Item "$tmp_file" -Force
         }
