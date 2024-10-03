@@ -299,12 +299,10 @@ function GetRemoteDrivers {
         if ("$host_drv" -ne "$db_drv") {
             $filename = Split-Path $driver.DDL -Leaf
             $cab_path = "$Path\drivers\$filename"
-
             # copy cab file to a temp folder and extract it's content
             Write-Log -Message "GetDrivers: downloading $db_drv ($cab_path)..." -LogLevel Info
             $tmp_file = ([System.IO.Path]::GetTempPath()) + $filename
             Copy-Item -Path "$cab_path" -Destination "$tmp_file"
-
             # process driver file (cab/exe)
             if ("$db_drv".Contains("NVIDIA - Display") -and $filename.EndsWith(".exe")) {
                 # special case: NVIDIA package
@@ -319,12 +317,15 @@ function GetRemoteDrivers {
                 # legacy installer doesn't seems to install itself
                 if ($filename.StartsWith("radeon-software-adrenalin")) {
                     # install from extracted installer
+                    Write-Log -Message "GetDrivers: detected legacy amd driver..." -LogLevel Info
                     if (Test-Path "C:\AMD") {
                         $setup = Get-ChildItem -Path "C:\AMD" -Depth 1 -Filter "Setup.exe" | Select-Object -First 1
+                        Write-Log -Message "GetDrivers: installing legacy driver from $($setup.FullName)..." -LogLevel Info
+                        Start-Process -FilePath "$($setup.FullName)" -ArgumentList "-uninstall" -Wait
                         Start-Process -FilePath "$($setup.FullName)" -ArgumentList "-install" -Wait
                     }
                     else {
-                        Write-Host "The specified path does not exist."
+                        Write-Log -Message "GetDrivers: could not install $db_drv (path not found: C:\AMD)" -LogLevel Error
                     }
                 }
                 # cleanup
