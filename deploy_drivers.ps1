@@ -12,8 +12,8 @@ param (
     [string]$srv_username = "", # srv_path unc share username
     [string]$srv_password = "", # srv_path unc share password
     [string]$log_file = "c:\deploy_drivers.log", # log file on client computer
-    [switch]$init_db = $false, # use "-init_db" script argument to download "data" (pilote table and all drivers on server)
-    [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/system/windows/pilotes.md", # url to database
+    [switch]$init = $false, # use "-init" script argument to download "data" (pilote table and all drivers on server)
+    [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/system/windows/masters/pilotes.md", # url to database
     [switch]$use_mirror = $false # download from mirror links
 )
 
@@ -341,9 +341,9 @@ function GetRemoteDrivers {
 # cleanup log file
 $null = Remove-Item -Path "$log_file" -Force
 
-if ($init_db) {
+if ($init) {
     # change log location
-    $log_file = "$PSScriptRoot\init_db.log"
+    $log_file = "$PSScriptRoot\init.log"
     Write-Log -Message "Downloading drivers..." -LogLevel Info
     InitDriverDb
     Write-Log -Message "All done..." -LogLevel Info
