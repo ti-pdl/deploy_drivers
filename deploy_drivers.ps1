@@ -281,7 +281,7 @@ function GetRemoteDrivers {
         }
 
         # check if the driver is for our "model" 
-        if ($driver.MODEL -ne "ALL" -and $driver.MODEL -ne $model) {
+        if ($driver.MODEL -ne "ANY" -and $driver.MODEL -ne $model) {
             Write-Log -Message "GetDrivers: skipping $($driver.DRIVER) ($($driver.MODEL) != $model)" -LogLevel Info
             continue
         }
