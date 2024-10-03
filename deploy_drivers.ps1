@@ -306,10 +306,16 @@ function GetRemoteDrivers {
             Copy-Item -Path "$cab_path" -Destination "$tmp_file"
 
             # process driver file (cab/exe)
-            if ("$db_drv".Contains("NVIDIA") -and $filename.EndsWith(".exe")) {
+            if ("$db_drv".Contains("NVIDIA - Display") -and $filename.EndsWith(".exe")) {
                 # special case: NVIDIA package
                 Write-Log -Message "GetDrivers: installing $db_drv..." -LogLevel Info
                 Start-Process -FilePath "$tmp_file" -ArgumentList "-s -noreboot" -Wait
+            }
+            elseif ("$db_drv".Contains("Advanced Micro Devices, Inc. - Display") -and $filename.EndsWith(".exe")) {
+                # special case: AMD package
+                Write-Log -Message "GetDrivers: installing $db_drv..." -LogLevel Info
+                Start-Process -FilePath "$tmp_file" -ArgumentList "-install" -Wait
+                $null = Remove-Item "C:\AMD" -Recurse -Force
             }
             else {
                 # extract cab content to local drivers path
