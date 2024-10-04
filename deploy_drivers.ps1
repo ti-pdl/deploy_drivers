@@ -11,11 +11,12 @@ param (
     [string]$srv_path = "", # unc path to "pilotes.md" directory
     [string]$srv_username = "", # srv_path unc share username
     [string]$srv_password = "", # srv_path unc share password
-    [string]$log_file = "c:\deploy_drivers.log", # log file on client computer
+    [string]$find = "", # find a driver on "https://catalog.update.microsoft.com/"
     [switch]$force = $false, # use "-force" script argument to force execution even if "$log_file" exists
     [switch]$init = $false, # use "-init" script argument to download "data" (pilote table and all drivers on server)
-    [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/system/windows/pilotes.md", # url to database
-    [switch]$use_mirror = $false # download from mirror links
+    [switch]$use_mirror = $false, # download from mirror links
+    [string]$log_file = "c:\deploy_drivers.log", # log file on client computer
+    [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/system/windows/pilotes.md" # url to database
 )
 
 ##############################
@@ -49,7 +50,7 @@ function Write-Log {
     }
 
     # append to log file
-    Add-Content -Path $log_file -Value $logMessage
+    Add-Content -Path $log_file -Value $logMessage > $null 2>&1
 }
 
 function GetComputerModel {
@@ -61,6 +62,17 @@ function GetComputerModel {
     }
 
     return $model
+}
+
+function GetWindowsVersion {
+    $winver = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
+
+    # windows update catlog seems to use 22H2 or 24H2 (we assume drivers for 22H2 are the best for 23H2)
+    if ($winver -eq "23H2") {
+        $winver = "22H2"
+    }
+
+    return $winver
 }
 
 function GetDeviceDriver {
@@ -79,9 +91,66 @@ function GetDeviceDriver {
             return
         }
     }
-    catch {}
+    catch {
+    }
 
     return $false
+}
+
+function FindDriver {
+    param (
+        [string]$Id
+    )
+
+    $winver = GetWindowsVersion
+    if ($winver -eq "22H2") {
+        Write-Log "FindDriver: detected windows version Windows 11 22H2/23H2"
+    }
+    else {
+        Write-Log "FindDriver: windows version: $winver"
+    }
+
+    Write-Log "FindDriver: searching on microsoft catalog for device id `"$Id`"..."
+
+    # perform the search by sending an HTTP request
+    $uri = "https://www.catalog.update.microsoft.com/Search.aspx?q=$Id"
+    $response = Invoke-WebRequest -Uri $uri
+
+    # find all rows in the HTML table
+    $rows = $response.ParsedHtml.getElementsByTagName('tr') | Where-Object {
+        $_.getElementsByTagName('td').length -ge 7 -and
+        $_.getElementsByTagName('a').length -eq 1
+    }
+
+    # prepare an array to store the results
+    $results = @()
+
+    # loop through each filtered row
+    foreach ($row in $rows) {
+        $title = $row.getElementsByTagName('td')[1].getElementsByTagName('a')[0].InnerText.Trim()
+        $products = $row.getElementsByTagName('td')[2].InnerText.Trim()
+        $classification = $row.getElementsByTagName('td')[3].InnerText.Trim()
+        $lastUpdated = $row.getElementsByTagName('td')[4].InnerText.Trim()
+        $size = $row.getElementsByTagName('td')[6].InnerText.Trim()
+
+        # add data to results array
+        $results += [PSCustomObject]@{
+            Title          = $title
+            Products       = $products
+            Classification = $classification
+            LastUpdated    = $lastUpdated
+            Size           = $size
+            Link           = $uri
+        }
+    }
+
+    foreach ($driver in $results) {
+        if ($driver.Products.Contains($winver)) {
+            return $driver
+        }
+    }
+
+    return $null
 }
 
 function MapDrive {
@@ -374,6 +443,11 @@ function GetRemoteDrivers {
 # main entry point #
 ####################
 
+if ($find.Length -gt 0) {
+    FindDriver "$find"
+    return
+}
+
 if ($init) {
     # change log location and cleanup logs
     $log_file = "$PSScriptRoot\init.log"
@@ -382,29 +456,29 @@ if ($init) {
     Write-Log -Message "Downloading drivers..." -LogLevel Info
     InitDriverDb
     Write-Log -Message "All done..." -LogLevel Info
+    return
 }
-else {
-    # stop here if script was already executed (log file exists) and "-force" parameter is not set
-    if (!$force -and (Test-Path $log_file -PathType Leaf)) {
-        Write-Host "Drivers already installed, skipping (use -force to... force)"
-        return
-    }
 
-    # cleanup logs
-    Remove-Item -Path "$log_file" -Force > $null 2>&1
-
-    # first look for drivers on local computer ("C:\drivers")
-    GetLocalDrivers
-
-    # now the real deal
-    if (!(MapDrive -unc_path $srv_path -drive "r")) {
-        Write-Log -Message "MapDrive: failed to map drive, exiting..." -LogLevel Error
-        return 1
-    }
-
-    # main stuff
-    GetRemoteDrivers("r:")
-
-    # unmap drive
-    UnMapDrive -drive "r"
+# stop here if script was already executed (log file exists) and "-force" parameter is not set
+if (!$force -and (Test-Path $log_file -PathType Leaf)) {
+    Write-Host "Drivers already installed, skipping (use -force to... force)"
+    return
 }
+
+# cleanup logs
+Remove-Item -Path "$log_file" -Force > $null 2>&1
+
+# first look for drivers on local computer ("C:\drivers")
+GetLocalDrivers
+
+# now the real deal
+if (!(MapDrive -unc_path $srv_path -drive "r")) {
+    Write-Log -Message "MapDrive: failed to map drive, exiting..." -LogLevel Error
+    return 1
+}
+
+# main stuff
+GetRemoteDrivers("r:")
+
+# unmap drive
+UnMapDrive -drive "r"
