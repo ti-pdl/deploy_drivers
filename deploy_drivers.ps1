@@ -12,6 +12,7 @@ param (
     [string]$srv_username = "", # srv_path unc share username
     [string]$srv_password = "", # srv_path unc share password
     [string]$log_file = "c:\deploy_drivers.log", # log file on client computer
+    [switch]$force = $false, # use "-force" script argument to force execution even if "$log_file" exists
     [switch]$init = $false, # use "-init" script argument to download "data" (pilote table and all drivers on server)
     [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/system/windows/masters/pilotes.md", # url to database
     [switch]$use_mirror = $false # download from mirror links
@@ -52,7 +53,14 @@ function Write-Log {
 }
 
 function GetComputerModel {
-    (Get-WmiObject Win32_ComputerSystem).Model
+    $model = (Get-WmiObject Win32_ComputerSystem).Model
+
+    # hum hum...
+    if ($model -eq "11SYS07900") {
+        $model = "ThinkCentre neo 50s Gen 3"
+    }
+
+    return $model
 }
 
 function GetDeviceDriver {
@@ -88,7 +96,7 @@ function MapDrive {
     $start = $unc_path.IndexOf("\\") + 2;
     $end = $unc_path.IndexOf("\", $start);
     if ($start -lt 2 -or $end -lt 3 -or $end -gt $unc_path.Length - 1) {
-        Write-Log -Message "MapDrive: could extract server address from $unc_path" -LogLevel Error
+        Write-Log -Message "MapDrive: could not extract server address from $unc_path" -LogLevel Error
         return $false
     }
 
@@ -359,17 +367,24 @@ function GetRemoteDrivers {
 # main entry point #
 ####################
 
-# cleanup log file
-Remove-Item -Path "$log_file" -Force > $null 2>&1
-
 if ($init) {
-    # change log location
+    # change log location and cleanup logs
     $log_file = "$PSScriptRoot\init.log"
+    Remove-Item -Path "$log_file" -Force > $null 2>&1
+    # init db...
     Write-Log -Message "Downloading drivers..." -LogLevel Info
     InitDriverDb
     Write-Log -Message "All done..." -LogLevel Info
 }
 else {
+    # stop here if script was already executed (log file exists) and "-force" parameter is not set
+    if (!$force -and (Test-Path $log_file -PathType Leaf)) {
+        return 0
+    }
+
+    # cleanup logs
+    Remove-Item -Path "$log_file" -Force > $null 2>&1
+
     # first look for drivers on local computer ("C:\drivers")
     GetLocalDrivers
 
