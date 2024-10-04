@@ -313,7 +313,7 @@ function GetRemoteDrivers {
 
             # if drivers was already copied locally for another device, skip it
             if (Test-Path $tmp_file -PathType Leaf) {
-                Write-Log -Message "GetDrivers: skipping $db_drv (already copied locally)..." -LogLevel Info
+                Write-Log -Message "GetDrivers: skipping $db_drv (duplicate driver)..." -LogLevel Info
                 continue
             }
 
