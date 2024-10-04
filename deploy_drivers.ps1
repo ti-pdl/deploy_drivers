@@ -14,7 +14,7 @@ param (
     [string]$log_file = "c:\deploy_drivers.log", # log file on client computer
     [switch]$force = $false, # use "-force" script argument to force execution even if "$log_file" exists
     [switch]$init = $false, # use "-init" script argument to download "data" (pilote table and all drivers on server)
-    [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/system/windows/masters/pilotes.md", # url to database
+    [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/system/windows/pilotes.md", # url to database
     [switch]$use_mirror = $false # download from mirror links
 )
 
