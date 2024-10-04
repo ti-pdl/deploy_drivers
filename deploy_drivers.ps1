@@ -354,7 +354,7 @@ function GetRemoteDrivers {
                 Write-Log -Message "GetDrivers: extracting $db_drv from $tmp_file..." -LogLevel Info
                 $tmp_path = "$local_driver_path\$db_drv"
                 $null = New-Item -Path "$tmp_path" -ItemType Directory -Force
-                expand "$tmp_file" -F:* "$tmp_path" > $null
+                Start-Process -FilePath "C:\Windows\System32\expand.exe" -ArgumentList "`"$tmp_file`" -F:* `"$tmp_path`"" -Wait
             }
         }
         else {
@@ -364,7 +364,7 @@ function GetRemoteDrivers {
 
     # install all extracted drivers (*.inf)
     Write-Log -Message "GetDrivers: installing all drivers in $local_driver_path..." -LogLevel Info
-    pnputil /add-driver "$local_driver_path\*.inf" /subdirs /install
+    Start-Process -FilePath "C:\Windows\System32\pnputil.exe" -ArgumentList "/add-driver `"$local_driver_path\*.inf`" /subdirs /install" -Wait
 
     # cleanup
     $null = Remove-Item "$local_driver_path" -Recurse -Force
