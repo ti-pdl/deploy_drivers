@@ -277,7 +277,7 @@ function GetRemoteDrivers {
     # get local computer model
     $model = GetComputerModel
 
-    # set local drivers path
+    # set local drivers path (temp)
     $local_driver_path = ([System.IO.Path]::GetTempPath()) + "deploy_drivers"
     $null = New-Item -Path "$local_driver_path" -ItemType Directory -Force
 
@@ -305,12 +305,21 @@ function GetRemoteDrivers {
 
         # check if driver match, if not process it
         if ("$host_drv" -ne "$db_drv") {
+            # setup paths
             $filename = Split-Path $driver.DDL -Leaf
-            $cab_path = "$Path\drivers\$filename"
-            # copy cab file to a temp folder and extract it's content
-            Write-Log -Message "GetDrivers: downloading $db_drv ($cab_path)..." -LogLevel Info
-            $tmp_file = ([System.IO.Path]::GetTempPath()) + $filename
-            Copy-Item -Path "$cab_path" -Destination "$tmp_file"
+            $remote_file = "$Path\drivers\$filename"
+            $tmp_file = "$local_driver_path\$filename"
+            Write-Log -Message "GetDrivers: downloading $db_drv ($remote_file => $tmp_file)..." -LogLevel Info
+
+            # if drivers was already copied locally for another device, skip it
+            if (Test-Path $tmp_file -PathType Leaf) {
+                Write-Log -Message "GetDrivers: skipping $db_drv (already copied locally)..." -LogLevel Info
+                continue
+            }
+
+            # copy the file locally
+            Copy-Item -Path "$remote_file" -Destination "$tmp_file"
+
             # process driver file (cab/exe)
             if ("$db_drv".Contains("NVIDIA - Display") -and $filename.EndsWith(".exe")) {
                 # special case: NVIDIA package
@@ -341,14 +350,11 @@ function GetRemoteDrivers {
             }
             else {
                 # extract cab content to local drivers path
-                Write-Log -Message "GetDrivers: extracting $db_drv ($cab_path)..." -LogLevel Info
+                Write-Log -Message "GetDrivers: extracting $db_drv from $tmp_file..." -LogLevel Info
                 $tmp_path = "$local_driver_path\$db_drv"
                 $null = New-Item -Path "$tmp_path" -ItemType Directory -Force
                 expand "$tmp_file" -F:* "$tmp_path" > $null
             }
-
-            # cleanup temp cab file
-            $null = Remove-Item "$tmp_file" -Force
         }
         else {
             Write-Log -Message "GetDrivers: skipping $db_drv (already installed)..." -LogLevel Info
@@ -379,7 +385,8 @@ if ($init) {
 else {
     # stop here if script was already executed (log file exists) and "-force" parameter is not set
     if (!$force -and (Test-Path $log_file -PathType Leaf)) {
-        return 0
+        Write-Host "Drivers already installed, skipping (use -force to... force)"
+        return
     }
 
     # cleanup logs
