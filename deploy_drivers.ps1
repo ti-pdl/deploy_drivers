@@ -280,6 +280,7 @@ function GetRemoteDrivers {
     # set local drivers path (temp)
     $local_driver_path = ([System.IO.Path]::GetTempPath()) + "deploy_drivers"
     $null = New-Item -Path "$local_driver_path" -ItemType Directory -Force
+    Write-Log -Message "GetDrivers: local_driver_path set to $local_driver_path" -LogLevel Info
 
     # loop through each drivers
     foreach ($driver in $db) {
@@ -309,7 +310,6 @@ function GetRemoteDrivers {
             $filename = Split-Path $driver.DDL -Leaf
             $remote_file = "$Path\drivers\$filename"
             $tmp_file = "$local_driver_path\$filename"
-            Write-Log -Message "GetDrivers: downloading $db_drv ($remote_file => $tmp_file)..." -LogLevel Info
 
             # if drivers was already copied locally for another device, skip it
             if (Test-Path $tmp_file -PathType Leaf) {
@@ -318,6 +318,7 @@ function GetRemoteDrivers {
             }
 
             # copy the file locally
+            Write-Log -Message "GetDrivers: downloading $db_drv ($remote_file)..." -LogLevel Info
             Copy-Item -Path "$remote_file" -Destination "$tmp_file"
 
             # process driver file (cab/exe)
