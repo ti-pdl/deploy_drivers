@@ -54,14 +54,14 @@ function Write-Log {
 }
 
 function GetComputerModel {
-    $model = (Get-WmiObject Win32_ComputerSystem).Model
+    $computer = Get-WmiObject Win32_ComputerSystem
 
     # hum hum...
-    if ($model -eq "11SYS07900") {
-        $model = "ThinkCentre neo 50s Gen 3"
+    if ($computer.Manufacturer.Equals("LENOVO")) {
+        return  $computer.SystemFamily
     }
 
-    return $model
+    return $computer.Model
 }
 
 function GetWindowsVersion {
@@ -73,6 +73,25 @@ function GetWindowsVersion {
     }
 
     return $winver
+}
+
+function GetDeviceName {
+    param (
+        [string]$Id
+    )
+
+    try {
+        # try to find the device and retrieve needed props
+        $device = Get-PnpDeviceProperty -InstanceId $Id -KeyName DEVPKEY_Device_DeviceDesc `
+            -ErrorAction Stop 2>$null | Select-Object -Property *
+        if ($null -ne $device) {
+            return $device.Data
+        }
+    }
+    catch {
+    }
+
+    return "ERROR"
 }
 
 function GetDeviceDriver {
@@ -508,7 +527,16 @@ function GetRemoteDrivers {
 ####################
 
 if ($search.Length -gt 0) {
-    return FindDriver "$search"
+    $drv = FindDriver "$search"
+    if ($drv) {
+        $model = GetComputerModel
+        $name = GetDeviceName $search
+        # output driver info
+        Write-Output $drv
+        # output markdown row for the wiki database (http://wiki.mydedibox.fr/system/windows/pilotes)
+        Write-Output "Markdown:`n| $model | $name | $search | [$($drv.Title)]($($drv.Link)) | [:floppy_disk:](TODO) | [:floppy_disk:](TODO) | NON |"
+    }
+    return
 }
 
 if ($init) {
