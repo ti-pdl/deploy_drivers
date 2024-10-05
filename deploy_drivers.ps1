@@ -268,7 +268,7 @@ function MapDrive {
     $net = New-Object -ComObject WScript.Network
     $net.MapNetworkDrive("${drive}:", $unc_path, $false, $srv_username, $srv_password)
 
-    # return true if we succeed
+    # return true if the drive was correctly mapped
     return Test-Path "${drive}:"
 }
 
@@ -548,10 +548,18 @@ if ($init) {
     $log_file = "$PSScriptRoot\init.log"
     Remove-Item -Path "$log_file" -Force > $null 2>&1
     # init db...
-    Write-Log -Message "Downloading drivers..." -LogLevel Info
+    Write-Log "Downloading drivers..."
     InitDriverDb
-    Write-Log -Message "All done..." -LogLevel Info
+    Write-Log "All done..."
     return
+}
+
+# safety checks
+if ([string]::IsNullOrEmpty($srv_path) `
+        -or [string]::IsNullOrEmpty($srv_username) `
+        -or [string]::IsNullOrEmpty($srv_password)) {
+            Write-Log "One or more argments are missing, exiting..." -LogLevel Error
+            return 1
 }
 
 # stop here if script was already executed (log file exists) and "-force" parameter is not set
@@ -568,7 +576,7 @@ GetLocalDrivers
 
 # now the real deal
 if (!(MapDrive -unc_path $srv_path -drive "r")) {
-    Write-Log -Message "MapDrive: failed to map drive, exiting..." -LogLevel Error
+    Write-Log "MapDrive: failed to map drive, exiting..." -LogLevel Error
     return 1
 }
 
@@ -577,3 +585,6 @@ GetRemoteDrivers("r:")
 
 # unmap drive
 UnMapDrive -drive "r"
+
+# great
+Write-Log "All done..."
