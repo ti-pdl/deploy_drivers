@@ -97,29 +97,39 @@ function GetDeviceDriver {
     return $false
 }
 
-function FindDriver {
+function QueryMsCatalog {
     param (
+        [Parameter(Mandatory = $true)]
         [string]$Id
     )
 
+    $rows = @()
+
+    # get windows product version for later use
     $winver = GetWindowsVersion
     if ($winver -eq "22H2") {
-        Write-Log "FindDriver: detected windows version Windows 11 22H2/23H2"
+        Write-Host "QueryMsCatalog: searching for `"$Id`" (22H2/23H2)"
     }
     else {
-        Write-Log "FindDriver: windows version: $winver"
+        Write-Host "QueryMsCatalog: searching for `"$Id`" ($winver)"
     }
 
-    Write-Log "FindDriver: searching on microsoft catalog for device id `"$Id`"..."
-
     # perform the search by sending an HTTP request
-    $uri = "https://www.catalog.update.microsoft.com/Search.aspx?q=$Id"
+    $uri = "https://www.catalog.update.microsoft.com/Search.aspx?q=$([System.Uri]::EscapeDataString($Id))"
     $response = Invoke-WebRequest -Uri $uri
+    if ($response.StatusCode -ne "200") {
+        return $null
+    }
 
     # find all rows in the HTML table
     $rows = $response.ParsedHtml.getElementsByTagName('tr') | Where-Object {
         $_.getElementsByTagName('td').length -ge 7 -and
         $_.getElementsByTagName('a').length -eq 1
+    }
+
+    # nothing found...
+    if ($rows.Count -eq 0) {
+        return $null
     }
 
     # prepare an array to store the results
@@ -142,15 +152,59 @@ function FindDriver {
             Size           = $size
             Link           = $uri
         }
-    }
 
-    foreach ($driver in $results) {
-        if ($driver.Products.Contains($winver)) {
-            return $driver
+        # return driver matching windows product version if any
+        foreach ($driver in $results) {
+            if ($driver.Products.Contains($winver)) {
+                return $driver
+            }
         }
     }
 
     return $null
+}
+
+function FindDriver {
+    param (
+        [string]$Id
+    )
+
+    <# DEBUG
+    $ids = Get-WmiObject Win32_PnPEntity | Select-Object -ExpandProperty DeviceID
+    foreach($i in $ids) {
+        if ($i.StartsWith("ACPI")) {
+            Write-Host $i
+            $i = $i.Substring(0, $i.LastIndexOf(("\")))
+            $driver = QueryMsCatalog $i
+        }
+    }
+    exit
+    #>
+
+    if (!$id.StartsWith("PCI") -and !$id.StartsWith("ACPI")) {
+        Write-Host "FindDriver: skipping `"$id`" (not supported yet)"
+        continue # TODO: handle other classes ?
+    }
+
+    if ($id.StartsWith("PCI")) {
+        # perform the "PCI" search
+        # "PCI\VEN_0000&DEV_0000&SUBSYS_00000000&REV_00\0&00" > "PCI\VEN_0000&DEV_0000&SUBSYS_00000000"
+        $id = $id.Substring(0, $id.IndexOf("&REV"))
+        $driver = QueryMsCatalog $id
+        if ($null -eq $driver) {
+            # "PCI\VEN_0000&DEV_0000&SUBSYS_00000000" > "PCI\VEN_0000&DEV_0000"
+            $id = $id.Substring(0, $id.IndexOf("&SUBSYS"))
+            $driver = QueryMsCatalog $id
+        }
+    }
+    elseif ($id.StartsWith("ACPI")) {
+        # perform the "ACPI" search
+        # "ACPI\INTC1056\2&DABA3FF&1" > "ACPI\INTC1056"
+        $id = $id.Substring(0, $id.LastIndexOf(("\")))
+        $driver = QueryMsCatalog $id
+    }
+
+    return $driver
 }
 
 function MapDrive {
@@ -444,8 +498,7 @@ function GetRemoteDrivers {
 ####################
 
 if ($find.Length -gt 0) {
-    FindDriver "$find"
-    return
+    return FindDriver "$find"
 }
 
 if ($init) {
