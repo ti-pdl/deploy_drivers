@@ -400,7 +400,7 @@ function InitDriverDb {
             $ProgressPreference = 'Continue'
         }
         else {
-            Write-Log -Message "InitDriverDb: skipping $outPath (file exists)..." -LogLevel Info
+            Write-Log "InitDriverDb: skipping $outPath (file exists)..."
         }
     }
 }
@@ -412,12 +412,13 @@ function GetLocalDrivers {
 
     if (Test-Path -Path $path) {
         # install all drivers (*.inf)
-        pnputil /add-driver "$path\*.inf" /subdirs /install
+        Write-Log "GetLocalDrivers: installing all drivers in $path..."
+        Start-Process -FilePath "C:\Windows\System32\pnputil.exe" -ArgumentList "/add-driver `"$path\*.inf`" /subdirs /install" -Wait
         # cleanup
         $null = Remove-Item "$path" -Recurse -Force
     }
     else {
-        Write-Log -Message "GetLocalDrivers: skipping local drivers, directory not found ($path)" -LogLevel Info
+        Write-Log "GetLocalDrivers: skipping local drivers, directory not found ($path)"
     }
 }
 
@@ -530,6 +531,7 @@ function GetRemoteDrivers {
 # main entry point #
 ####################
 
+# search for a device id on ms catalog
 if ($search.Length -gt 0) {
     $drv = FindDriver "$search"
     if ($drv) {
@@ -543,11 +545,11 @@ if ($search.Length -gt 0) {
     return
 }
 
+# init db...
 if ($init) {
     # change log location and cleanup logs
     $log_file = "$PSScriptRoot\init.log"
     Remove-Item -Path "$log_file" -Force > $null 2>&1
-    # init db...
     Write-Log "Downloading drivers..."
     InitDriverDb
     Write-Log "All done..."
@@ -558,8 +560,8 @@ if ($init) {
 if ([string]::IsNullOrEmpty($srv_path) `
         -or [string]::IsNullOrEmpty($srv_username) `
         -or [string]::IsNullOrEmpty($srv_password)) {
-            Write-Log "One or more argments are missing, exiting..." -LogLevel Error
-            return 1
+    Write-Log "One or more argments are missing, exiting..." -LogLevel Error
+    return 1
 }
 
 # stop here if script was already executed (log file exists) and "-force" parameter is not set
