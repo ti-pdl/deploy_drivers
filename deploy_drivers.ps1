@@ -11,7 +11,7 @@ param (
     [string]$srv_path = "", # unc path to "pilotes.md" directory
     [string]$srv_username = "", # srv_path unc share username
     [string]$srv_password = "", # srv_path unc share password
-    [string]$find = "", # find a driver on "https://catalog.update.microsoft.com/"
+    [string]$search = "", # search a driver on "https://catalog.update.microsoft.com/"
     [switch]$force = $false, # use "-force" script argument to force execution even if "$log_file" exists
     [switch]$init = $false, # use "-init" script argument to download "data" (pilote table and all drivers on server)
     [switch]$use_mirror = $false, # download from mirror links
@@ -507,8 +507,8 @@ function GetRemoteDrivers {
 # main entry point #
 ####################
 
-if ($find.Length -gt 0) {
-    return FindDriver "$find"
+if ($search.Length -gt 0) {
+    return FindDriver "$search"
 }
 
 if ($init) {
