@@ -108,7 +108,7 @@ function QueryMsCatalog {
     # get windows product version for later use
     $winver = GetWindowsVersion
     if ($winver -eq "22H2") {
-        Write-Host "QueryMsCatalog: searching for `"$Id`" (22H2/23H2)"
+        Write-Host "QueryMsCatalog: searching for `"$Id`" (windows 11 22H2/23H2)"
     }
     else {
         Write-Host "QueryMsCatalog: searching for `"$Id`" ($winver)"
@@ -152,12 +152,21 @@ function QueryMsCatalog {
             Size           = $size
             Link           = $uri
         }
+    }
 
-        # return driver matching windows product version if any
-        foreach ($driver in $results) {
-            if ($driver.Products.Contains($winver)) {
-                return $driver
-            }
+    # return driver matching windows product version if any
+    foreach ($driver in $results) {
+        if ($driver.Products.Contains($winver)) {
+            Write-Host "QueryMsCatalog: found windows 11 ($winver) driver"
+            return $driver
+        }
+    }
+
+    # try to find a windows 10 (1903) compatible driver
+    foreach ($driver in $results) {
+        if ($driver.Products.Contains("1903")) {
+            Write-Host "QueryMsCatalog: found windows 10 (1903) compatible driver"
+            return $driver
         }
     }
 
@@ -186,21 +195,22 @@ function FindDriver {
         continue # TODO: handle other classes ?
     }
 
+    # handle PCI/APCI id
     if ($id.StartsWith("PCI")) {
-        # perform the "PCI" search
         # "PCI\VEN_0000&DEV_0000&SUBSYS_00000000&REV_00\0&00" > "PCI\VEN_0000&DEV_0000&SUBSYS_00000000"
         $id = $id.Substring(0, $id.IndexOf("&REV"))
-        $driver = QueryMsCatalog $id
-        if ($null -eq $driver) {
-            # "PCI\VEN_0000&DEV_0000&SUBSYS_00000000" > "PCI\VEN_0000&DEV_0000"
-            $id = $id.Substring(0, $id.IndexOf("&SUBSYS"))
-            $driver = QueryMsCatalog $id
-        }
     }
-    elseif ($id.StartsWith("ACPI")) {
-        # perform the "ACPI" search
-        # "ACPI\INTC1056\2&DABA3FF&1" > "ACPI\INTC1056"
+    else {
+        # "ACPI\INTC0000\0&AAAAAAA&0" > "ACPI\INTC0000"
         $id = $id.Substring(0, $id.LastIndexOf(("\")))
+    }
+
+    # query ms catalog
+    $driver = QueryMsCatalog $id
+    if ($null -eq $driver -and !$id.StartsWith("ACPI")) {
+        # try PCI device id without SUBSYS
+        # "PCI\VEN_0000&DEV_0000&SUBSYS_00000000" > "PCI\VEN_0000&DEV_0000"
+        $id = $id.Substring(0, $id.IndexOf("&SUBSYS"))
         $driver = QueryMsCatalog $id
     }
 
