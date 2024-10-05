@@ -91,7 +91,7 @@ function GetDeviceName {
     catch {
     }
 
-    return "ERROR"
+    return "N/A"
 }
 
 function GetDeviceDriver {
@@ -119,7 +119,8 @@ function GetDeviceDriver {
 function QueryMsCatalog {
     param (
         [Parameter(Mandatory = $true)]
-        [string]$Id
+        [string]$Id,
+        [string]$Name
     )
 
     $rows = @()
@@ -127,10 +128,10 @@ function QueryMsCatalog {
     # get windows product version for later use
     $winver = GetWindowsVersion
     if ($winver -eq "22H2") {
-        Write-Host "QueryMsCatalog: searching for `"$Id`" (windows 11 22H2/23H2)"
+        Write-Host "QueryMsCatalog: searching windows 11 (22H2/23H2) driver for `"$Id`" ($Name)"
     }
     else {
-        Write-Host "QueryMsCatalog: searching for `"$Id`" ($winver)"
+        Write-Host "QueryMsCatalog: searching windows $winver driver for `"$Id`" ($Name)"
     }
 
     # perform the search by sending an HTTP request
@@ -197,6 +198,9 @@ function FindDriver {
         [string]$Id
     )
 
+    # get device name...
+    $devname = GetDeviceName $Id
+
     <# DEBUG
     $ids = Get-WmiObject Win32_PnPEntity | Select-Object -ExpandProperty DeviceID
     foreach($i in $ids) {
@@ -225,12 +229,12 @@ function FindDriver {
     }
 
     # query ms catalog
-    $driver = QueryMsCatalog $id
+    $driver = QueryMsCatalog $id -Name $devname
     if ($null -eq $driver -and !$id.StartsWith("ACPI")) {
         # try PCI device id without SUBSYS
         # "PCI\VEN_0000&DEV_0000&SUBSYS_00000000" > "PCI\VEN_0000&DEV_0000"
         $id = $id.Substring(0, $id.IndexOf("&SUBSYS"))
-        $driver = QueryMsCatalog $id
+        $driver = QueryMsCatalog $id -Name $devname
     }
 
     return $driver
