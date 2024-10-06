@@ -12,6 +12,7 @@ param (
     [string]$srv_username = "", # srv_path unc share username
     [string]$srv_password = "", # srv_path unc share password
     [string]$search = "", # search a driver on "https://catalog.update.microsoft.com/"
+    [switch]$scan = $false, # scan for missing drivers
     [switch]$force = $false, # use "-force" script argument to force execution even if "$log_file" exists
     [switch]$init = $false, # use "-init" script argument to download "data" (pilote table and all drivers on server)
     [switch]$use_mirror = $false, # download from mirror links
@@ -213,7 +214,7 @@ function FindDriver {
     exit
     #>
 
-    if (!$id.StartsWith("PCI") -and !$id.StartsWith("ACPI")) {
+    if (!$id.StartsWith("PCI") -and !$id.StartsWith("ACPI") -and !$id.StartsWith("USB")) {
         Write-Host "FindDriver: skipping `"$id`" (not supported yet)"
         continue # TODO: handle other classes ?
     }
@@ -225,12 +226,13 @@ function FindDriver {
     }
     else {
         # "ACPI\INTC0000\0&AAAAAAA&0" > "ACPI\INTC0000"
+        # "USB\VID_0000&PID_00CD&MI_00\0&00000000&0&0000 > USB\VID_0000&PID_00CD&MI_00"
         $id = $id.Substring(0, $id.LastIndexOf(("\")))
     }
 
     # query ms catalog
     $driver = QueryMsCatalog $id -Name $devname
-    if ($null -eq $driver -and !$id.StartsWith("ACPI")) {
+    if ($null -eq $driver -and $id.StartsWith("PCI")) {
         # try PCI device id without SUBSYS
         # "PCI\VEN_0000&DEV_0000&SUBSYS_00000000" > "PCI\VEN_0000&DEV_0000"
         $id = $id.Substring(0, $id.IndexOf("&SUBSYS"))
@@ -238,6 +240,15 @@ function FindDriver {
     }
 
     return $driver
+}
+
+function FindMissingDrivers {
+    Get-PnpDevice -PresentOnly | Where-Object { 
+        ($_.Status -ne "OK" -or $_.Description -eq "*Carte vidéo de base Microsoft*" -or $_.Description -eq "Contrôleur vidéo") -and
+        ($_.DeviceID.StartsWith("PCI") -or $_.DeviceID.StartsWith("USB\V") -or $_.DeviceID.StartsWith("ACPI\"))
+    } | Select-Object Status, Manufacturer, Description, DeviceID | ForEach-Object {
+        FindDriver $_.DeviceID
+    }
 }
 
 function MapDrive {
@@ -543,6 +554,11 @@ if ($search.Length -gt 0) {
         Write-Output "Markdown:`n| $model | $name | $search | [$($drv.Title)]($($drv.Link)) | [:floppy_disk:](TODO) | [:floppy_disk:](TODO) | NON |"
     }
     return
+}
+
+# scan for missing drivers
+if ($scan) {
+    return FindMissingDrivers
 }
 
 # init db...
