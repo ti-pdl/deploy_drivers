@@ -244,7 +244,7 @@ function FindDriver {
 
 function FindMissingDrivers {
     Get-PnpDevice -PresentOnly | Where-Object { 
-        ($_.Status -ne "OK" -or $_.Description -eq "*Carte vidéo de base Microsoft*" -or $_.Description -eq "Contrôleur vidéo") -and
+        ($_.Status -ne "OK" -or $_.Description -like "Carte vid*" -or $_.Description -eq "Contrôleur vidéo") -and
         ($_.DeviceID.StartsWith("PCI") -or $_.DeviceID.StartsWith("USB\V") -or $_.DeviceID.StartsWith("ACPI\"))
     } | Select-Object Status, Manufacturer, Description, DeviceID | ForEach-Object {
         FindDriver $_.DeviceID
@@ -380,7 +380,7 @@ function InitDriverDb {
     $driversPath = "$PSScriptRoot\drivers"
 
     # load database
-    $null = Remove-Item -Path "$PSScriptRoot\pilotes.md"
+    Remove-Item -Path "$PSScriptRoot\pilotes.md" -Force > $null 2>&1
     $db = LoadDriverDb("$PSScriptRoot\pilotes.md")
 
     # create driver directory
@@ -426,7 +426,7 @@ function GetLocalDrivers {
         Write-Log "GetLocalDrivers: installing all drivers in $path..."
         Start-Process -FilePath "C:\Windows\System32\pnputil.exe" -ArgumentList "/add-driver `"$path\*.inf`" /subdirs /install" -Wait
         # cleanup
-        $null = Remove-Item "$path" -Recurse -Force
+        Remove-Item "$path" -Recurse -Force > $null 2>&1
     }
     else {
         Write-Log "GetLocalDrivers: skipping local drivers, directory not found ($path)"
@@ -515,7 +515,7 @@ function GetRemoteDrivers {
                     }
                 }
                 # cleanup
-                $null = Remove-Item "C:\AMD" -Recurse -Force
+                Remove-Item "C:\AMD" -Recurse -Force > $null 2>&1
             }
             else {
                 # extract cab content to local drivers path
@@ -535,7 +535,7 @@ function GetRemoteDrivers {
     Start-Process -FilePath "C:\Windows\System32\pnputil.exe" -ArgumentList "/add-driver `"$local_driver_path\*.inf`" /subdirs /install" -Wait
 
     # cleanup
-    $null = Remove-Item "$local_driver_path" -Recurse -Force
+    Remove-Item "$local_driver_path" -Recurse -Force > $null 2>&1
 }
 
 ####################
