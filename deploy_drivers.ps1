@@ -303,7 +303,7 @@ function LoadDriverDb {
     if (!(Test-Path $DbPath -PathType Leaf)) {
         Write-Log -Message "LoadDriverDb: downloading database from $db_url" -LogLevel Info
         try {
-            Invoke-WebRequest -Uri $db_url -OutFile $DbPath -TimeoutSec 5 -ErrorAction Stop
+            Invoke-WebRequest -Uri $db_url -OutFile $DbPath -TimeoutSec 5 -Headers @{"Cache-Control"="no-cache"} -ErrorAction Stop
         }
         catch {
             $msg = $_.Exception.Message
