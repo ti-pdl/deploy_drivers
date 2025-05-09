@@ -20,6 +20,9 @@ param (
     [string]$db_url = "https://github.com/ti-pdl/wiki/raw/refs/heads/master/system/windows/pilotes.md" # url to database
 )
 
+# force tls12
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 ##############################
 # custom functions / helpers #
 ##############################
