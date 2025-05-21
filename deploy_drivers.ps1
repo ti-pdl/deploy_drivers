@@ -217,7 +217,7 @@ function FindDriver {
     exit
     #>
 
-    if (!$id.StartsWith("PCI") -and !$id.StartsWith("ACPI") -and !$id.StartsWith("USB")) {
+    if (!$id.StartsWith("PCI") -and !$id.StartsWith("ACPI") -and !$id.StartsWith("USB") -and !$id.StartsWith("INTELAUDIO")) {
         Write-Host "FindDriver: skipping `"$id`" (not supported yet)"
         continue # TODO: handle other classes ?
     }
@@ -248,9 +248,15 @@ function FindDriver {
 function FindMissingDrivers {
     Get-PnpDevice -PresentOnly | Where-Object { 
         ($_.Status -ne "OK" -or $_.Description -like "Carte vid*" -or $_.Description -eq "Contrôleur vidéo") -and
-        ($_.DeviceID.StartsWith("PCI") -or $_.DeviceID.StartsWith("USB\V") -or $_.DeviceID.StartsWith("ACPI\"))
+        ($_.DeviceID.StartsWith("PCI") -or $_.DeviceID.StartsWith("USB\V") -or $_.DeviceID.StartsWith("ACPI\") -or $_.DeviceID.StartsWith("INTELAUDIO\"))
     } | Select-Object Status, Manufacturer, Description, DeviceID | ForEach-Object {
-        FindDriver $_.DeviceID
+        $drv = FindDriver $_.DeviceID
+		if ($null -eq $driver) {
+			$model = GetComputerModel
+			$name = GetDeviceName $_.DeviceID
+			$id = $_.DeviceID
+			Write-Output "Markdown:`n| $model | $name | $id | [$($drv.Title)]($($drv.Link)) | [:floppy_disk:](TODO) | [:floppy_disk:](TODO) | NON |`n"
+		}
     }
 }
 
@@ -306,7 +312,7 @@ function LoadDriverDb {
     if (!(Test-Path $DbPath -PathType Leaf)) {
         Write-Log -Message "LoadDriverDb: downloading database from $db_url" -LogLevel Info
         try {
-            Invoke-WebRequest -Uri $db_url -OutFile $DbPath -TimeoutSec 5 -Headers @{"Cache-Control"="no-cache"} -ErrorAction Stop
+            Invoke-WebRequest -Uri $db_url -OutFile $DbPath -TimeoutSec 5 -ErrorAction Stop
         }
         catch {
             $msg = $_.Exception.Message
